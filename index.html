@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arijeem Multi-Purpose - Loadout Order Management</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h1>ARIJEEM</h1>
+                <h2>MULTI-PURPOSE</h2>
+            </div>
+            <button class="new-order-btn" onclick="showScreen('new-order')">+ NEW ORDER</button>
+            <ul class="nav-menu">
+                <li><a href="#" onclick="showScreen('dashboard')" class="nav-link active" data-screen="dashboard">Dashboard</a></li>
+                <li><a href="#" onclick="showScreen('orders')" class="nav-link" data-screen="orders">Orders</a></li>
+                <li><a href="#" onclick="showScreen('products')" class="nav-link" data-screen="products">Products</a></li>
+                <li><a href="#" onclick="showScreen('presellers')" class="nav-link" data-screen="presellers">Presellers</a></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Mobile Header -->
+            <div class="mobile-header">
+                <button class="hamburger" onclick="toggleMobileMenu()">☰</button>
+                <h1>ARIJEEM MULTI-PURPOSE</h1>
+            </div>
+
+            <!-- Dashboard Screen -->
+            <div id="dashboard-screen" class="screen">
+                <h2>Dashboard</h2>
+                <div class="dashboard-stats">
+                    <div class="stat-card">
+                        <h3>Today's Orders</h3>
+                        <p class="stat-value" id="today-orders">0</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Today's Sales</h3>
+                        <p class="stat-value" id="today-sales">&#8358;0</p>
+                    </div>
+                </div>
+                <div class="dashboard-actions">
+                    <button class="action-btn" onclick="showScreen('new-order')">+ NEW ORDER</button>
+                    <button class="action-btn" onclick="showScreen('orders')">VIEW ORDER HISTORY</button>
+                </div>
+            </div>
+
+            <!-- New Order Screen -->
+            <div id="new-order-screen" class="screen hidden">
+                <h2>New Order</h2>
+                <form id="order-form">
+                    <!-- Customer Section -->
+                    <div class="form-section">
+                        <h3>Loadout Preseller</h3>
+                        <div class="preseller-section">
+                            <select id="preseller-select" class="form-select" required>
+                                <option value="">SELECT LOADOUT</option>
+                            </select>
+                            <button type="button" class="add-btn" onclick="showAddPresellerModal()">+ ADD NEW LOADOUT</button>
+                        </div>
+                    </div>
+
+                    <!-- Product Section -->
+                    <div class="form-section">
+                        <h3>Ordered Products</h3>
+                        <div id="product-rows">
+                            <!-- Product rows will be added here -->
+                        </div>
+                        <button type="button" class="add-btn" onclick="addProductRow()">+ ADD PRODUCT</button>
+                    </div>
+
+                    <!-- Summary Section -->
+                    <div class="form-section">
+                        <h3>Order Summary</h3>
+                        <div class="summary-row">
+                            <span>Subtotal:</span>
+                            <span id="subtotal">&#8358;0.00</span>
+                        </div>
+                        <div class="summary-row">
+                            <span>Delivery Fee:</span>
+                            <span>&#8358;100.00</span>
+                        </div>
+                        <div class="summary-row total">
+                            <span>Grand Total:</span>
+                            <span id="grand-total">&#8358;0.00</span>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="submit-btn">GENERATE ORDER & RECEIPT</button>
+                </form>
+            </div>
+
+            <!-- Orders Screen -->
+            <div id="orders-screen" class="screen hidden">
+                <h2>Order History</h2>
+                <div class="search-section">
+                    <input type="text" id="order-search" class="search-input" placeholder="Search by order number, loadout, or date..." oninput="searchOrders()">
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Order Number</th>
+                                <th>Loadout</th>
+                                <th>Date</th>
+                                <th>Total</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orders-table-body">
+                            <!-- Orders will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Products Screen -->
+            <div id="products-screen" class="screen hidden">
+                <h2>Products Management</h2>
+                <button class="add-btn" onclick="showAddProductModal()">+ ADD PRODUCT</button>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Price / Pack</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="products-table-body">
+                            <!-- Products will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Presellers Screen -->
+            <div id="presellers-screen" class="screen hidden">
+                <h2>Preseller Management</h2>
+                <button class="add-btn" onclick="showAddPresellerModal()">+ ADD PRESELLER</button>
+                <div class="search-section">
+                    <input type="text" id="preseller-search" class="search-input" placeholder="Search presellers..." oninput="searchPresellers()">
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="presellers-table-body">
+                            <!-- Presellers will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Receipt Modal -->
+    <div id="receipt-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Receipt</h3>
+                <button class="close-btn" onclick="closeReceiptModal()">×</button>
+            </div>
+            <div id="receipt-content" class="receipt">
+                <!-- Receipt will be generated here -->
+            </div>
+            <div class="modal-actions">
+                <button class="pdf-btn" onclick="downloadPDF()">DOWNLOAD PDF (A5)</button>
+                <button class="print-btn" onclick="printReceipt()">PRINT RECEIPT</button>
+                <button class="close-btn" onclick="closeReceiptModal()">CLOSE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Product Modal -->
+    <div id="add-product-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Product</h3>
+                <button class="close-btn" onclick="closeAddProductModal()">×</button>
+            </div>
+            <form id="add-product-form">
+                <div class="form-group">
+                    <label>Product Name</label>
+                    <input type="text" id="product-name" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label>Price per Pack (&#8358;)</label>
+                    <input type="number" id="product-price" class="form-input" required min="0" step="0.01">
+                </div>
+                <button type="submit" class="submit-btn">SAVE PRODUCT</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Product Modal -->
+    <div id="edit-product-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit Product</h3>
+                <button class="close-btn" onclick="closeEditProductModal()">×</button>
+            </div>
+            <form id="edit-product-form">
+                <input type="hidden" id="edit-product-id">
+                <div class="form-group">
+                    <label>Product Name</label>
+                    <input type="text" id="edit-product-name" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label>Price per Pack (&#8358;)</label>
+                    <input type="number" id="edit-product-price" class="form-input" required min="0" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="edit-product-active" class="form-select">
+                        <option value="true">Active</option>
+                        <option value="false">Inactive</option>
+                    </select>
+                </div>
+                <button type="submit" class="submit-btn">UPDATE PRODUCT</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Preseller Modal -->
+    <div id="add-preseller-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Preseller</h3>
+                <button class="close-btn" onclick="closeAddPresellerModal()">×</button>
+            </div>
+            <form id="add-preseller-form">
+                <div class="form-group">
+                    <label>Preseller Name</label>
+                    <input type="text" id="preseller-name" class="form-input" required placeholder="Enter name (will be auto-capitalized)">
+                </div>
+                <button type="submit" class="submit-btn">SAVE PRESELLER</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Preseller Modal -->
+    <div id="edit-preseller-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit Preseller</h3>
+                <button class="close-btn" onclick="closeEditPresellerModal()">×</button>
+            </div>
+            <form id="edit-preseller-form">
+                <input type="hidden" id="edit-preseller-id">
+                <div class="form-group">
+                    <label>Preseller Name</label>
+                    <input type="text" id="edit-preseller-name" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="edit-preseller-active" class="form-select">
+                        <option value="true">Active</option>
+                        <option value="false">Inactive</option>
+                    </select>
+                </div>
+                <button type="submit" class="submit-btn">UPDATE PRESELLER</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
