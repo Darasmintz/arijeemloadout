@@ -11,18 +11,21 @@
 </head>
 <body>
     <div class="app-container">
+        <!-- Sidebar Overlay Backdrop for Mobile -->
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileMenu(event)"></div>
+
         <!-- Sidebar Navigation -->
-        <nav class="sidebar">
+        <nav class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <h1>ARIJEEM</h1>
                 <h2>MULTI-PURPOSE</h2>
             </div>
-            <button class="new-order-btn" onclick="showScreen('new-order')">+ NEW ORDER</button>
+            <button type="button" class="new-order-btn" onclick="showScreen('new-order', event)">+ NEW ORDER</button>
             <ul class="nav-menu">
-                <li><a href="#" onclick="showScreen('dashboard')" class="nav-link active" data-screen="dashboard">Dashboard</a></li>
-                <li><a href="#" onclick="showScreen('orders')" class="nav-link" data-screen="orders">Orders</a></li>
-                <li><a href="#" onclick="showScreen('products')" class="nav-link" data-screen="products">Products</a></li>
-                <li><a href="#" onclick="showScreen('presellers')" class="nav-link" data-screen="presellers">Presellers</a></li>
+                <li><a href="#" onclick="showScreen('dashboard', event)" class="nav-link active" data-screen="dashboard">Dashboard</a></li>
+                <li><a href="#" onclick="showScreen('orders', event)" class="nav-link" data-screen="orders">Orders</a></li>
+                <li><a href="#" onclick="showScreen('products', event)" class="nav-link" data-screen="products">Products</a></li>
+                <li><a href="#" onclick="showScreen('presellers', event)" class="nav-link" data-screen="presellers">Presellers</a></li>
             </ul>
         </nav>
 
@@ -30,7 +33,7 @@
         <main class="main-content">
             <!-- Mobile Header -->
             <div class="mobile-header">
-                <button class="hamburger" onclick="toggleMobileMenu()">☰</button>
+                <button type="button" class="hamburger" onclick="toggleMobileMenu(event)" aria-label="Toggle Navigation Menu">☰</button>
                 <h1>ARIJEEM MULTI-PURPOSE</h1>
             </div>
 
@@ -48,8 +51,8 @@
                     </div>
                 </div>
                 <div class="dashboard-actions">
-                    <button class="action-btn" onclick="showScreen('new-order')">+ NEW ORDER</button>
-                    <button class="action-btn" onclick="showScreen('orders')">VIEW ORDER HISTORY</button>
+                    <button type="button" class="action-btn" onclick="showScreen('new-order', event)">+ NEW ORDER</button>
+                    <button type="button" class="action-btn" onclick="showScreen('orders', event)">VIEW ORDER HISTORY</button>
                 </div>
             </div>
 
@@ -57,6 +60,44 @@
             <div id="new-order-screen" class="screen hidden">
                 <h2>New Order</h2>
                 <form id="order-form">
+                    <!-- Order Entry Date & Time Section -->
+                    <div class="form-section">
+                        <h3>Order Entry Date & Time</h3>
+                        <div class="grid-2col">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 12px; font-weight: bold; margin-bottom: 4px; display: block;">Entry Date</label>
+                                <input type="date" id="order-entry-date" class="form-input" required onchange="updateOrderNumberPreview()">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 12px; font-weight: bold; margin-bottom: 4px; display: block;">Entry Time</label>
+                                <input type="time" id="order-entry-time" class="form-input" required>
+                            </div>
+                        </div>
+                        <small style="color: #666; font-size: 12px; margin-top: 6px; display: block;">Select entry date and time for this order (defaults to current date & time).</small>
+                    </div>
+
+                    <!-- Order Number / Invoice Section -->
+                    <div class="form-section">
+                        <h3>Invoice / Order Number</h3>
+                        <div style="margin-bottom: 10px;">
+                            <label style="display: inline-flex; align-items: center; gap: 8px; font-weight: bold; cursor: pointer; font-size: 13px;">
+                                <input type="checkbox" id="override-order-number-toggle" onchange="toggleOrderNumberOverride(this.checked)">
+                                Edit Invoice Number (Custom 4-Digit Serial)
+                            </label>
+                        </div>
+                        <div class="grid-2col">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 12px; font-weight: bold; margin-bottom: 4px; display: block;">Serial Suffix (4 Digits)</label>
+                                <input type="text" id="custom-serial-input" class="form-input" placeholder="e.g. 0012, 0056" maxlength="4" disabled oninput="updateOrderNumberPreview()">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 12px; font-weight: bold; margin-bottom: 4px; display: block;">Invoice Preview</label>
+                                <input type="text" id="order-number-preview" class="form-input" style="font-weight: bold; background-color: #f4f6f9; color: #1a1a2e;" readonly value="AUTO-GENERATED">
+                            </div>
+                        </div>
+                        <small style="color: #666; font-size: 12px; margin-top: 6px; display: block;">Toggle on to override the 4-digit serial suffix (e.g. 0012, 0056). Default is auto-generated.</small>
+                    </div>
+
                     <!-- Customer Section -->
                     <div class="form-section">
                         <h3>Loadout Preseller</h3>
@@ -65,6 +106,28 @@
                                 <option value="">SELECT LOADOUT</option>
                             </select>
                             <button type="button" class="add-btn" onclick="showAddPresellerModal()">+ ADD NEW LOADOUT</button>
+                        </div>
+                    </div>
+
+                    <!-- Driver Section -->
+                    <div class="form-section">
+                        <h3>Driver</h3>
+                        <div class="preseller-section">
+                            <select id="driver-select" class="form-select">
+                                <option value="">SELECT DRIVER (OPTIONAL)</option>
+                            </select>
+                            <button type="button" class="add-btn" onclick="showAddDriverModal()">+ ADD NEW DRIVER</button>
+                        </div>
+                    </div>
+
+                    <!-- Route Section -->
+                    <div class="form-section">
+                        <h3>Route</h3>
+                        <div class="preseller-section">
+                            <select id="route-select" class="form-select">
+                                <option value="">SELECT ROUTE (OPTIONAL)</option>
+                            </select>
+                            <button type="button" class="add-btn" onclick="showAddRouteModal()">+ ADD NEW ROUTE</button>
                         </div>
                     </div>
 
@@ -274,6 +337,40 @@
                     </select>
                 </div>
                 <button type="submit" class="submit-btn">UPDATE PRESELLER</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Driver Modal -->
+    <div id="add-driver-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Driver</h3>
+                <button class="close-btn" onclick="closeAddDriverModal()">×</button>
+            </div>
+            <form id="add-driver-form">
+                <div class="form-group">
+                    <label>Driver Name</label>
+                    <input type="text" id="driver-name" class="form-input" required placeholder="e.g. MR AKINYEMI">
+                </div>
+                <button type="submit" class="submit-btn">SAVE DRIVER</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Route Modal -->
+    <div id="add-route-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Route</h3>
+                <button class="close-btn" onclick="closeAddRouteModal()">×</button>
+            </div>
+            <form id="add-route-form">
+                <div class="form-group">
+                    <label>Route Name / Number</label>
+                    <input type="text" id="route-name" class="form-input" required placeholder="e.g. ROUTE 3">
+                </div>
+                <button type="submit" class="submit-btn">SAVE ROUTE</button>
             </form>
         </div>
     </div>
