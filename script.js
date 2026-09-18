@@ -15,6 +15,8 @@ const PAYMENT_MODE = 'transfer';
 let products = [];
 let presellers = [];
 let orders = [];
+let drivers = ['MR AKINYEMI', 'MR BOLA', 'MR JOHNSON', 'MR SUNDAY', 'MR EMMANUEL'];
+let routes = ['ROUTE 1', 'ROUTE 2', 'ROUTE 3', 'ROUTE 4', 'ROUTE 5', 'ROUTE 6', 'ROUTE 7', 'ROUTE 8', 'ROUTE 9', 'ROUTE 10'];
 let currentOrderItems = [];
 
 // Initialize application
@@ -25,10 +27,82 @@ document.addEventListener('DOMContentLoaded', function() {
 async function initializeApp() {
     await loadProducts();
     await loadPresellers();
+    await loadDrivers();
+    await loadRoutes();
     await loadOrders();
+    setDefaultOrderDate();
     updateDashboard();
     addProductRow();
     setupEventListeners();
+}
+
+function setDefaultOrderDate(force = false) {
+    const dateInput = document.getElementById('order-entry-date');
+    const timeInput = document.getElementById('order-entry-time');
+    const today = new Date();
+
+    if (dateInput && (force || !dateInput.value)) {
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        dateInput.value = `${yyyy}-${mm}-${dd}`;
+    }
+
+    if (timeInput && (force || !timeInput.value)) {
+        const hh = String(today.getHours()).padStart(2, '0');
+        const min = String(today.getMinutes()).padStart(2, '0');
+        timeInput.value = `${hh}:${min}`;
+    }
+
+    updateOrderNumberPreview();
+}
+
+function toggleOrderNumberOverride(enabled) {
+    const input = document.getElementById('custom-serial-input');
+    if (!input) return;
+    input.disabled = !enabled;
+    if (enabled) {
+        input.focus();
+    } else {
+        input.value = '';
+    }
+    updateOrderNumberPreview();
+}
+
+function updateOrderNumberPreview() {
+    const toggle = document.getElementById('override-order-number-toggle');
+    const customInput = document.getElementById('custom-serial-input');
+    const previewEl = document.getElementById('order-number-preview');
+    const dateInput = document.getElementById('order-entry-date');
+
+    if (!previewEl) return;
+
+    // Determine YYMMDD prefix from date picker or current date
+    let dateObj = new Date();
+    if (dateInput && dateInput.value) {
+        const [y, m, d] = dateInput.value.split('-').map(Number);
+        if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+            dateObj = new Date(y, m - 1, d);
+        }
+    }
+
+    const year = dateObj.getFullYear().toString().slice(-2);
+    const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+    const day = dateObj.getDate().toString().padStart(2, '0');
+    const prefix = `${year}${month}${day}${COMPANY_ID}`;
+
+    if (toggle && toggle.checked && customInput) {
+        const cleanSerial = customInput.value.replace(/\D/g, '');
+        customInput.value = cleanSerial;
+        if (cleanSerial.length > 0) {
+            const paddedSerial = cleanSerial.padStart(4, '0');
+            previewEl.value = `${prefix}${paddedSerial}`;
+        } else {
+            previewEl.value = `${prefix}XXXX`;
+        }
+    } else {
+        previewEl.value = `AUTO (${prefix}XXXX)`;
+    }
 }
 
 // Setup event listeners
@@ -38,17 +112,35 @@ function setupEventListeners() {
     document.getElementById('edit-product-form').addEventListener('submit', handleEditProduct);
     document.getElementById('add-preseller-form').addEventListener('submit', handleAddPreseller);
     document.getElementById('edit-preseller-form').addEventListener('submit', handleEditPreseller);
+    document.getElementById('add-driver-form').addEventListener('submit', handleAddDriver);
+    document.getElementById('add-route-form').addEventListener('submit', handleAddRoute);
+
+    // Close modal when backdrop is clicked
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.classList.add('hidden');
+            }
+        });
+    });
 }
 
 // Navigation
-function showScreen(screenName) {
+function showScreen(screenName, event) {
+    if (event) {
+        event.preventDefault();
+    }
+
     // Hide all screens
     document.querySelectorAll('.screen').forEach(screen => {
         screen.classList.add('hidden');
     });
 
     // Show selected screen
-    document.getElementById(`${screenName}-screen`).classList.remove('hidden');
+    const targetScreen = document.getElementById(`${screenName}-screen`);
+    if (targetScreen) {
+        targetScreen.classList.remove('hidden');
+    }
 
     // Update nav links
     document.querySelectorAll('.nav-link').forEach(link => {
@@ -59,11 +151,14 @@ function showScreen(screenName) {
     });
 
     // Close mobile menu
-    document.querySelector('.mobile-menu').classList.remove('active');
+    document.getElementById('sidebar')?.classList.remove('active');
+    document.getElementById('sidebar-overlay')?.classList.remove('active');
 
     // Load data based on screen
     if (screenName === 'dashboard') {
         updateDashboard();
+    } else if (screenName === 'new-order') {
+        setDefaultOrderDate();
     } else if (screenName === 'orders') {
         loadOrders();
     } else if (screenName === 'products') {
@@ -73,8 +168,14 @@ function showScreen(screenName) {
     }
 }
 
-function toggleMobileMenu() {
-    document.querySelector('.mobile-menu').classList.toggle('active');
+function toggleMobileMenu(event) {
+    if (event) {
+        event.stopPropagation();
+    }
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    if (sidebar) sidebar.classList.toggle('active');
+    if (overlay) overlay.classList.toggle('active');
 }
 
 // Products
@@ -316,7 +417,7 @@ async function loadOrders() {
                 *,
                 preseller:presellers(name)
             `)
-            .order('created_at', { ascending: false });
+            .order('order_date', { ascending: false });
 
         if (error) throw error;
         orders = data;
@@ -365,14 +466,28 @@ function addProductRow() {
     row.className = 'product-row';
     row.id = `product-row-${rowId}`;
     row.innerHTML = `
-        <select class="product-select" onchange="onProductSelect(this, ${rowId})">
-            <option value="">Select Product</option>
-            ${options}
-        </select>
-        <input type="number" class="quantity-input" min="1" value="0" onchange="calculateRowTotal(${rowId})" oninput="calculateRowTotal(${rowId})">
-        <input type="text" class="unit-price" value="₦0.00" readonly>
-        <input type="text" class="row-total" value="₦0.00" readonly>
-        <button type="button" class="remove-btn" onclick="removeProductRow(${rowId})">Remove</button>
+        <div class="product-row-select-wrap">
+            <label class="mobile-only-label">Product</label>
+            <select class="product-select" onchange="onProductSelect(this, ${rowId})">
+                <option value="">Select Product</option>
+                ${options}
+            </select>
+        </div>
+        <div class="product-row-field">
+            <label class="mobile-only-label">Qty</label>
+            <input type="number" class="quantity-input" min="1" value="0" placeholder="Qty" onchange="calculateRowTotal(${rowId})" oninput="calculateRowTotal(${rowId})">
+        </div>
+        <div class="product-row-field">
+            <label class="mobile-only-label">Price</label>
+            <input type="text" class="unit-price" value="₦0.00" readonly placeholder="Unit Price">
+        </div>
+        <div class="product-row-field">
+            <label class="mobile-only-label">Total</label>
+            <input type="text" class="row-total" value="₦0.00" readonly placeholder="Total">
+        </div>
+        <div class="product-row-actions">
+            <button type="button" class="remove-btn" onclick="removeProductRow(${rowId})">Remove</button>
+        </div>
     `;
     
     container.appendChild(row);
@@ -463,15 +578,79 @@ async function handleOrderSubmit(e) {
     }
     
     try {
-        // Get next order serial
-        const { data: counterData, error: counterError } = await db
-            .rpc('get_next_order_serial');
-        
-        if (counterError) throw counterError;
-        
-        const serial = counterData;
-        const orderNumber = generateOrderNumber(serial);
-        const orderDate = new Date().toISOString();
+        // Determine entry date & time from form inputs
+        const dateInputValue = document.getElementById('order-entry-date')?.value;
+        const timeInputValue = document.getElementById('order-entry-time')?.value;
+        const driverName = document.getElementById('driver-select')?.value || '';
+        const routeName = document.getElementById('route-select')?.value || '';
+
+        const now = new Date();
+        let targetDate = new Date();
+
+        if (dateInputValue) {
+            const [y, m, d] = dateInputValue.split('-').map(Number);
+            let hours = now.getHours();
+            let minutes = now.getMinutes();
+
+            if (timeInputValue) {
+                const [th, tm] = timeInputValue.split(':').map(Number);
+                if (!isNaN(th)) hours = th;
+                if (!isNaN(tm)) minutes = tm;
+            }
+
+            targetDate = new Date(y, m - 1, d, hours, minutes, 0, 0);
+        }
+
+        // Determine order number (Auto or Custom Override)
+        const toggle = document.getElementById('override-order-number-toggle');
+        const customSerialInput = document.getElementById('custom-serial-input');
+        const isCustomOverride = (toggle && toggle.checked && customSerialInput && customSerialInput.value.trim().length > 0);
+        let serial = 0;
+        let orderNumber = '';
+
+        if (isCustomOverride) {
+            const cleanSerial = customSerialInput.value.replace(/\D/g, '').padStart(4, '0');
+            orderNumber = generateOrderNumber(cleanSerial, targetDate);
+        } else {
+            // Get next order serial from database counter
+            const { data: counterData, error: counterError } = await db.rpc('get_next_order_serial');
+            if (counterError) throw counterError;
+            serial = counterData || 1;
+            orderNumber = generateOrderNumber(serial, targetDate);
+        }
+
+        // Check if orderNumber already exists in database
+        let finalOrderNumber = orderNumber;
+        const { data: existingOrder } = await db
+            .from('orders')
+            .select('id')
+            .eq('order_number', finalOrderNumber)
+            .maybeSingle();
+
+        if (existingOrder) {
+            if (isCustomOverride) {
+                alert(`Order creation failed: Invoice Number '${finalOrderNumber}' already exists in your database!\n\nPlease enter a different 4-digit serial (e.g. 0012, 0056) or uncheck custom order number edit.`);
+                return;
+            } else {
+                // Auto-increment serial if default counter collided with existing record
+                let suffixNum = parseInt(serial) || 1;
+                while (true) {
+                    suffixNum++;
+                    const candidateNumber = generateOrderNumber(suffixNum, targetDate);
+                    const { data: check } = await db
+                        .from('orders')
+                        .select('id')
+                        .eq('order_number', candidateNumber)
+                        .maybeSingle();
+                    if (!check) {
+                        finalOrderNumber = candidateNumber;
+                        break;
+                    }
+                }
+            }
+        }
+
+        const orderDate = targetDate.toISOString();
         
         const subtotal = orderItems.reduce((sum, item) => sum + item.total_price, 0);
         const total = subtotal + DELIVERY_FEE;
@@ -480,9 +659,11 @@ async function handleOrderSubmit(e) {
         const { data: orderData, error: orderError } = await db
             .from('orders')
             .insert([{
-                order_number: orderNumber,
+                order_number: finalOrderNumber,
                 order_date: orderDate,
                 preseller_id: parseInt(presellerId),
+                driver_name: driverName,
+                route_name: routeName,
                 payment_method: PAYMENT_MODE,
                 cashier_name: CASHIER_NAME,
                 outstanding_balance: 0,
@@ -510,10 +691,16 @@ async function handleOrderSubmit(e) {
         
         // Generate receipt
         const preseller = presellers.find(p => p.id === parseInt(presellerId));
-        generateReceipt(orderNumber, orderDate, preseller.name, orderItems, subtotal, total);
+        generateReceipt(finalOrderNumber, orderDate, preseller.name, orderItems, subtotal, total, driverName, routeName);
         
-        // Reset form
+        // Reset form & restore default date & preview
         document.getElementById('order-form').reset();
+        const toggleEl = document.getElementById('override-order-number-toggle');
+        if (toggleEl) toggleEl.checked = false;
+        toggleOrderNumberOverride(false);
+        setDefaultOrderDate(true);
+        populateDrivers();
+        populateRoutes();
         document.getElementById('product-rows').innerHTML = '';
         addProductRow();
         calculateOrderTotal();
@@ -524,15 +711,18 @@ async function handleOrderSubmit(e) {
         alert('Order created successfully!');
     } catch (error) {
         console.error('Error creating order:', error);
-        alert('Error creating order. Please try again.');
+        if (error.code === '23505' || (error.message && error.message.includes('duplicate key'))) {
+            alert(`Order creation failed: This Order Number already exists in the database!\n\nPlease use a different 4-digit serial or uncheck custom order number edit.`);
+        } else {
+            alert('Error creating order: ' + (error.message || 'Please check input details and try again.'));
+        }
     }
 }
 
-function generateOrderNumber(serial) {
-    const now = new Date();
-    const year = now.getFullYear().toString().slice(-2);
-    const month = (now.getMonth() + 1).toString().padStart(2, '0');
-    const day = now.getDate().toString().padStart(2, '0');
+function generateOrderNumber(serial, dateObj = new Date()) {
+    const year = dateObj.getFullYear().toString().slice(-2);
+    const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+    const day = dateObj.getDate().toString().padStart(2, '0');
     const serialStr = serial.toString().padStart(4, '0');
     return `${year}${month}${day}${COMPANY_ID}${serialStr}`;
 }
@@ -560,10 +750,12 @@ async function viewOrder(orderId) {
         generateReceipt(
             order.order_number,
             order.order_date,
-            order.preseller.name,
+            order.preseller?.name || 'N/A',
             items,
             order.subtotal,
-            order.total
+            order.total,
+            order.driver_name || '',
+            order.route_name || ''
         );
     } catch (error) {
         console.error('Error viewing order:', error);
@@ -580,21 +772,54 @@ let currentOrderNumberForPDF = '';
 
 function downloadPDF() {
     const element = document.getElementById('receipt-content');
+    if (!element) {
+        window.print();
+        return;
+    }
+
+    // Refresh barcode SVG to ensure active rendering
+    if (currentOrderNumberForPDF) {
+        try {
+            JsBarcode("#barcode", currentOrderNumberForPDF, {
+                format: "CODE128",
+                width: 2.0,
+                height: 46,
+                displayValue: false,
+                margin: 0
+            });
+        } catch (e) {}
+    }
+
     const filename = `Receipt_${currentOrderNumberForPDF || 'Order'}.pdf`;
-    
+
     const opt = {
-        margin:       [3, 3, 3, 3],
+        margin:       [4, 4, 4, 4],
         filename:     filename,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 3, useCORS: true, logging: false },
+        image:        { type: 'jpeg', quality: 1.0 },
+        html2canvas:  { 
+            scale: 2, 
+            useCORS: true, 
+            allowTaint: true,
+            backgroundColor: '#ffffff',
+            scrollX: 0,
+            scrollY: 0
+        },
         jsPDF:        { unit: 'mm', format: 'a5', orientation: 'portrait' }
     };
-    
-    html2pdf().set(opt).from(element).save();
+
+    try {
+        html2pdf().set(opt).from(element).save().catch(err => {
+            console.warn("html2pdf failed, falling back to print:", err);
+            window.print();
+        });
+    } catch (err) {
+        console.warn("PDF library error, falling back to print:", err);
+        window.print();
+    }
 }
 
 // Receipt
-function generateReceipt(orderNumber, orderDate, presellerName, items, subtotal, total) {
+function generateReceipt(orderNumber, orderDate, presellerName, items, subtotal, total, driverName = '', routeName = '') {
     currentOrderNumberForPDF = orderNumber;
     const receiptContent = document.getElementById('receipt-content');
 
@@ -628,7 +853,11 @@ function generateReceipt(orderNumber, orderDate, presellerName, items, subtotal,
             </tr>
             <tr>
                 <td class="r-label">Customer Name</td>
-                <td class="r-value r-value-bold">${presellerName}</td>
+                <td class="r-value r-value-bold">
+                    ${presellerName}
+                    ${driverName ? `<br>${driverName}` : ''}
+                    ${routeName ? `<br>${routeName}` : ''}
+                </td>
             </tr>
             <tr>
                 <td class="r-label">Outstanding<br>balance</td>
@@ -710,12 +939,15 @@ function closeReceiptModal() {
 // Dashboard
 async function updateDashboard() {
     try {
-        const today = new Date().toISOString().split('T')[0];
+        const now = new Date();
+        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+        const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
         
         const { data: todayOrders, error: ordersError } = await db
             .from('orders')
             .select('total')
-            .gte('created_at', today);
+            .gte('order_date', startOfDay)
+            .lte('order_date', endOfDay);
         
         if (ordersError) throw ordersError;
         
@@ -842,6 +1074,113 @@ async function initializeDefaultData() {
     if (!existingCounter || existingCounter.length === 0) {
         await db.from('order_counter').insert([{ current_serial: 0 }]);
     }
+}
+
+// Drivers & Routes Management
+async function loadDrivers() {
+    try {
+        const { data, error } = await db.from('drivers').select('*').eq('active', true).order('name');
+        if (!error && data && data.length > 0) {
+            drivers = data.map(d => d.name);
+        } else {
+            const stored = localStorage.getItem('arijeem_drivers');
+            if (stored) drivers = JSON.parse(stored);
+        }
+    } catch (e) {
+        const stored = localStorage.getItem('arijeem_drivers');
+        if (stored) drivers = JSON.parse(stored);
+    }
+    populateDrivers();
+}
+
+async function loadRoutes() {
+    try {
+        const { data, error } = await db.from('routes').select('*').eq('active', true).order('name');
+        if (!error && data && data.length > 0) {
+            routes = data.map(r => r.name);
+        } else {
+            const stored = localStorage.getItem('arijeem_routes');
+            if (stored) routes = JSON.parse(stored);
+        }
+    } catch (e) {
+        const stored = localStorage.getItem('arijeem_routes');
+        if (stored) routes = JSON.parse(stored);
+    }
+    populateRoutes();
+}
+
+function populateDrivers() {
+    const select = document.getElementById('driver-select');
+    if (!select) return;
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">SELECT DRIVER (OPTIONAL)</option>' +
+        drivers.map(d => `<option value="${d}">${d}</option>`).join('');
+    if (currentVal) select.value = currentVal;
+}
+
+function populateRoutes() {
+    const select = document.getElementById('route-select');
+    if (!select) return;
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">SELECT ROUTE (OPTIONAL)</option>' +
+        routes.map(r => `<option value="${r}">${r}</option>`).join('');
+    if (currentVal) select.value = currentVal;
+}
+
+function showAddDriverModal() {
+    document.getElementById('add-driver-modal').classList.remove('hidden');
+}
+
+function closeAddDriverModal() {
+    document.getElementById('add-driver-modal').classList.add('hidden');
+}
+
+async function handleAddDriver(e) {
+    e.preventDefault();
+    const nameInput = document.getElementById('driver-name');
+    const name = nameInput.value.trim().toUpperCase();
+    if (!name) return;
+
+    if (!drivers.includes(name)) {
+        drivers.push(name);
+        localStorage.setItem('arijeem_drivers', JSON.stringify(drivers));
+        try {
+            await db.from('drivers').insert([{ name, active: true }]);
+        } catch (err) {}
+    }
+
+    populateDrivers();
+    document.getElementById('driver-select').value = name;
+    document.getElementById('add-driver-form').reset();
+    closeAddDriverModal();
+}
+
+function showAddRouteModal() {
+    document.getElementById('add-route-modal').classList.remove('hidden');
+}
+
+function closeAddRouteModal() {
+    document.getElementById('add-route-modal').classList.add('hidden');
+}
+
+async function handleAddRoute(e) {
+    e.preventDefault();
+    const nameInput = document.getElementById('route-name');
+    const name = nameInput.value.trim().toUpperCase();
+    if (!name) return;
+
+    if (!routes.includes(name)) {
+        routes.push(name);
+        localStorage.setItem('arijeem_routes', JSON.stringify(routes));
+        try {
+            await db.from('routes').insert([{ name, active: true }]);
+        } catch (err) {}
+    }
+
+    populateRoutes();
+    document.getElementById('route-select').value = name;
+    document.getElementById('add-route-form').reset();
+    closeAddRouteModal();
 }
 
 
