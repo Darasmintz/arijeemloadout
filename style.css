@@ -257,18 +257,38 @@ h2 {
 }
 
 /* Product Rows */
+.row-field-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    color: #4b5563;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
 .product-row {
     display: grid;
-    grid-template-columns: 2fr 1fr 1fr 1fr auto;
-    gap: 10px;
-    align-items: center;
-    margin-bottom: 15px;
-    padding-bottom: 15px;
+    grid-template-columns: 2.2fr 1fr 1.2fr 1.2fr auto;
+    gap: 12px;
+    align-items: start;
+    margin-bottom: 16px;
+    padding-bottom: 16px;
     border-bottom: 1px solid #eee;
 }
 
 .product-row:last-child {
     border-bottom: none;
+}
+
+.product-row-select-wrap {
+    display: flex;
+    flex-direction: column;
+}
+
+.product-row-field {
+    display: flex;
+    flex-direction: column;
 }
 
 .product-row select,
@@ -278,10 +298,71 @@ h2 {
     border: 1px solid #ddd;
     border-radius: 6px;
     font-size: 14px;
+    transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
 }
 
 .product-row input[readonly] {
     background-color: #f9f9f9;
+    color: #495057;
+    cursor: default;
+}
+
+.product-row input.custom-override-active {
+    background-color: #ffffff !important;
+    border-color: #1a73e8 !important;
+    box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.15) !important;
+    font-weight: 600;
+    color: #1a1a2e !important;
+}
+
+.row-override-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+}
+
+.override-checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: #555;
+    cursor: pointer;
+    user-select: none;
+    background-color: #f3f4f6;
+    padding: 3px 7px;
+    border-radius: 4px;
+    border: 1px solid #e5e7eb;
+    transition: all 0.2s ease;
+}
+
+.override-checkbox-label:hover {
+    background-color: #e5e7eb;
+    color: #1a1a2e;
+}
+
+.override-checkbox-label input[type="checkbox"] {
+    width: 13px !important;
+    height: 13px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    cursor: pointer;
+    accent-color: #1a1a2e;
+}
+
+.override-checkbox-label:has(input:checked) {
+    background-color: #e8f0fe;
+    border-color: #4285f4;
+    color: #1a73e8;
+    font-weight: 600;
+}
+
+.product-row-actions {
+    display: flex;
+    align-items: flex-end;
+    padding-top: 21px;
 }
 
 .remove-btn {
@@ -292,6 +373,7 @@ h2 {
     border-radius: 6px;
     cursor: pointer;
     font-size: 14px;
+    transition: background-color 0.2s;
 }
 
 .remove-btn:hover {
@@ -908,6 +990,7 @@ h2 {
         grid-area: actions;
         display: flex;
         justify-content: flex-end;
+        padding-top: 0;
         margin-top: 4px;
     }
 
@@ -919,6 +1002,7 @@ h2 {
     }
 
     /* Mobile Labels */
+    .row-field-label,
     .mobile-only-label {
         display: block;
         font-size: 11px;
