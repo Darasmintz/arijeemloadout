@@ -458,32 +458,43 @@ function searchOrders() {
 // Order Form
 function addProductRow() {
     const container = document.getElementById('product-rows');
-    const rowId = Date.now();
+    const rowId = Date.now() + Math.floor(Math.random() * 1000);
     const activeProducts = products.filter(p => p.active);
     const options = activeProducts.map(p => `<option value="${p.id}" data-price="${p.price}">${p.name}</option>`).join('');
     
     const row = document.createElement('div');
     row.className = 'product-row';
     row.id = `product-row-${rowId}`;
+    row.dataset.rowId = rowId;
     row.innerHTML = `
         <div class="product-row-select-wrap">
-            <label class="mobile-only-label">Product</label>
+            <label class="row-field-label">Product</label>
             <select class="product-select" onchange="onProductSelect(this, ${rowId})">
                 <option value="">Select Product</option>
                 ${options}
             </select>
+            <div class="row-override-controls">
+                <label class="override-checkbox-label" title="Override unit price for this product">
+                    <input type="checkbox" class="override-price-toggle" onchange="togglePriceOverride(${rowId}, this.checked)">
+                    <span>Custom Price</span>
+                </label>
+                <label class="override-checkbox-label" title="Override total price directly (for multiple orders or custom lump sum)">
+                    <input type="checkbox" class="override-total-toggle" onchange="toggleTotalOverride(${rowId}, this.checked)">
+                    <span>Custom Total</span>
+                </label>
+            </div>
         </div>
         <div class="product-row-field">
-            <label class="mobile-only-label">Qty</label>
-            <input type="number" class="quantity-input" min="1" value="0" placeholder="Qty" onchange="calculateRowTotal(${rowId})" oninput="calculateRowTotal(${rowId})">
+            <label class="row-field-label">Qty</label>
+            <input type="number" class="quantity-input" min="1" value="1" placeholder="Qty" onchange="onQuantityChange(${rowId})" oninput="onQuantityChange(${rowId})">
         </div>
         <div class="product-row-field">
-            <label class="mobile-only-label">Price</label>
-            <input type="text" class="unit-price" value="₦0.00" readonly placeholder="Unit Price">
+            <label class="row-field-label">Unit Price (₦)</label>
+            <input type="number" class="unit-price-input" min="0" step="any" placeholder="0.00" readonly oninput="onCustomPriceChange(${rowId})" title="Unit Price">
         </div>
         <div class="product-row-field">
-            <label class="mobile-only-label">Total</label>
-            <input type="text" class="row-total" value="₦0.00" readonly placeholder="Total">
+            <label class="row-field-label">Total (₦)</label>
+            <input type="number" class="row-total-input" min="0" step="any" placeholder="0.00" readonly oninput="onCustomTotalChange(${rowId})" title="Total Price">
         </div>
         <div class="product-row-actions">
             <button type="button" class="remove-btn" onclick="removeProductRow(${rowId})">Remove</button>
@@ -503,22 +514,183 @@ function removeProductRow(rowId) {
 
 function onProductSelect(select, rowId) {
     const row = document.getElementById(`product-row-${rowId}`);
+    if (!row) return;
     const selectedOption = select.options[select.selectedIndex];
-    const price = selectedOption.dataset.price || 0;
+    const defaultPrice = parseFloat(selectedOption?.dataset?.price) || 0;
     
-    row.querySelector('.unit-price').value = `₦${formatNumber(price)}`;
-    calculateRowTotal(rowId);
+    const priceToggle = row.querySelector('.override-price-toggle');
+    const totalToggle = row.querySelector('.override-total-toggle');
+    const priceInput = row.querySelector('.unit-price-input');
+    const totalInput = row.querySelector('.row-total-input');
+    const qtyInput = row.querySelector('.quantity-input');
+    const quantity = parseFloat(qtyInput.value) || 0;
+
+    if (!priceToggle.checked && !totalToggle.checked) {
+        priceInput.value = defaultPrice > 0 ? defaultPrice : '';
+        const total = defaultPrice * quantity;
+        totalInput.value = total > 0 ? total : '';
+    } else if (priceToggle.checked) {
+        if (!priceInput.value || parseFloat(priceInput.value) === 0) {
+            priceInput.value = defaultPrice > 0 ? defaultPrice : '';
+        }
+        const customPrice = parseFloat(priceInput.value) || 0;
+        const total = customPrice * quantity;
+        totalInput.value = total > 0 ? total : '';
+    } else if (totalToggle.checked) {
+        const customTotal = parseFloat(totalInput.value) || 0;
+        if (customTotal === 0 && defaultPrice > 0 && quantity > 0) {
+            totalInput.value = defaultPrice * quantity;
+            priceInput.value = defaultPrice;
+        } else if (quantity > 0 && customTotal > 0) {
+            const effPrice = customTotal / quantity;
+            priceInput.value = effPrice % 1 === 0 ? effPrice : effPrice.toFixed(2);
+        }
+    }
+
+    calculateOrderTotal();
 }
 
-function calculateRowTotal(rowId) {
+function togglePriceOverride(rowId, isChecked) {
     const row = document.getElementById(`product-row-${rowId}`);
+    if (!row) return;
+
+    const priceInput = row.querySelector('.unit-price-input');
+    const totalInput = row.querySelector('.row-total-input');
+    const totalToggle = row.querySelector('.override-total-toggle');
     const select = row.querySelector('.product-select');
     const selectedOption = select.options[select.selectedIndex];
-    const price = parseFloat(selectedOption.dataset.price) || 0;
-    const quantity = parseInt(row.querySelector('.quantity-input').value) || 0;
-    const total = price * quantity;
+    const defaultPrice = parseFloat(selectedOption?.dataset?.price) || 0;
+    const qtyInput = row.querySelector('.quantity-input');
+    const quantity = parseFloat(qtyInput.value) || 0;
+
+    if (isChecked) {
+        if (totalToggle.checked) {
+            totalToggle.checked = false;
+            totalInput.readOnly = true;
+            totalInput.classList.remove('custom-override-active');
+        }
+
+        priceInput.readOnly = false;
+        priceInput.classList.add('custom-override-active');
+        if (!priceInput.value || parseFloat(priceInput.value) === 0) {
+            priceInput.value = defaultPrice > 0 ? defaultPrice : '';
+        }
+        priceInput.focus();
+        priceInput.select();
+
+        const currentPrice = parseFloat(priceInput.value) || 0;
+        const total = currentPrice * quantity;
+        totalInput.value = total > 0 ? total : '';
+    } else {
+        priceInput.readOnly = true;
+        priceInput.classList.remove('custom-override-active');
+        priceInput.value = defaultPrice > 0 ? defaultPrice : '';
+        const total = defaultPrice * quantity;
+        totalInput.value = total > 0 ? total : '';
+    }
+
+    calculateOrderTotal();
+}
+
+function toggleTotalOverride(rowId, isChecked) {
+    const row = document.getElementById(`product-row-${rowId}`);
+    if (!row) return;
+
+    const priceInput = row.querySelector('.unit-price-input');
+    const totalInput = row.querySelector('.row-total-input');
+    const priceToggle = row.querySelector('.override-price-toggle');
+    const select = row.querySelector('.product-select');
+    const selectedOption = select.options[select.selectedIndex];
+    const defaultPrice = parseFloat(selectedOption?.dataset?.price) || 0;
+    const qtyInput = row.querySelector('.quantity-input');
+    const quantity = parseFloat(qtyInput.value) || 0;
+
+    if (isChecked) {
+        if (priceToggle.checked) {
+            priceToggle.checked = false;
+            priceInput.readOnly = true;
+            priceInput.classList.remove('custom-override-active');
+        }
+
+        totalInput.readOnly = false;
+        totalInput.classList.add('custom-override-active');
+
+        if (!totalInput.value || parseFloat(totalInput.value) === 0) {
+            const currentPrice = parseFloat(priceInput.value) || defaultPrice;
+            const initTotal = currentPrice * quantity;
+            if (initTotal > 0) totalInput.value = initTotal;
+        }
+        totalInput.focus();
+        totalInput.select();
+    } else {
+        totalInput.readOnly = true;
+        totalInput.classList.remove('custom-override-active');
+
+        priceInput.value = defaultPrice > 0 ? defaultPrice : '';
+        const total = defaultPrice * quantity;
+        totalInput.value = total > 0 ? total : '';
+    }
+
+    calculateOrderTotal();
+}
+
+function onQuantityChange(rowId) {
+    const row = document.getElementById(`product-row-${rowId}`);
+    if (!row) return;
+
+    const qtyInput = row.querySelector('.quantity-input');
+    const quantity = parseFloat(qtyInput.value) || 0;
+    const priceInput = row.querySelector('.unit-price-input');
+    const totalInput = row.querySelector('.row-total-input');
+    const totalToggle = row.querySelector('.override-total-toggle');
+
+    if (totalToggle.checked) {
+        const customTotal = parseFloat(totalInput.value) || 0;
+        if (quantity > 0 && customTotal > 0) {
+            const effPrice = customTotal / quantity;
+            priceInput.value = effPrice % 1 === 0 ? effPrice : effPrice.toFixed(2);
+        }
+    } else {
+        const unitPrice = parseFloat(priceInput.value) || 0;
+        const total = unitPrice * quantity;
+        totalInput.value = total > 0 ? total : '';
+    }
+
+    calculateOrderTotal();
+}
+
+function onCustomPriceChange(rowId) {
+    const row = document.getElementById(`product-row-${rowId}`);
+    if (!row) return;
+
+    const priceInput = row.querySelector('.unit-price-input');
+    const totalInput = row.querySelector('.row-total-input');
+    const qtyInput = row.querySelector('.quantity-input');
     
-    row.querySelector('.row-total').value = `₦${formatNumber(total)}`;
+    const customPrice = parseFloat(priceInput.value) || 0;
+    const quantity = parseFloat(qtyInput.value) || 0;
+    const total = customPrice * quantity;
+    
+    totalInput.value = total > 0 ? total : '';
+    calculateOrderTotal();
+}
+
+function onCustomTotalChange(rowId) {
+    const row = document.getElementById(`product-row-${rowId}`);
+    if (!row) return;
+
+    const priceInput = row.querySelector('.unit-price-input');
+    const totalInput = row.querySelector('.row-total-input');
+    const qtyInput = row.querySelector('.quantity-input');
+    
+    const customTotal = parseFloat(totalInput.value) || 0;
+    const quantity = parseFloat(qtyInput.value) || 0;
+
+    if (quantity > 0 && customTotal > 0) {
+        const effPrice = customTotal / quantity;
+        priceInput.value = effPrice % 1 === 0 ? effPrice : effPrice.toFixed(2);
+    }
+
     calculateOrderTotal();
 }
 
@@ -527,8 +699,9 @@ function calculateOrderTotal() {
     let subtotal = 0;
     
     rows.forEach(row => {
-        const totalText = row.querySelector('.row-total').value.replace(/[₦,]/g, '');
-        subtotal += parseFloat(totalText) || 0;
+        const totalInput = row.querySelector('.row-total-input');
+        const rowVal = parseFloat(totalInput?.value) || 0;
+        subtotal += rowVal;
     });
     
     const grandTotal = subtotal + DELIVERY_FEE;
@@ -553,13 +726,19 @@ async function handleOrderSubmit(e) {
     rows.forEach(row => {
         const select = row.querySelector('.product-select');
         const productId = select.value;
-        const quantity = parseInt(row.querySelector('.quantity-input').value) || 0;
+        const quantity = parseFloat(row.querySelector('.quantity-input').value) || 0;
+        let unitPrice = parseFloat(row.querySelector('.unit-price-input').value) || 0;
+        let totalPrice = parseFloat(row.querySelector('.row-total-input').value) || 0;
         
         if (productId && quantity > 0) {
             const selectedOption = select.options[select.selectedIndex];
             const productName = selectedOption.text;
-            const unitPrice = parseFloat(selectedOption.dataset.price);
-            const totalPrice = unitPrice * quantity;
+            
+            if (totalPrice === 0 && unitPrice > 0) {
+                totalPrice = unitPrice * quantity;
+            } else if (unitPrice === 0 && totalPrice > 0) {
+                unitPrice = totalPrice / quantity;
+            }
             
             orderItems.push({
                 product_id: parseInt(productId),
